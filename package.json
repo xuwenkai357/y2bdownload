@@ -1,0 +1,26 @@
+{
+  "name": "y2b-download",
+  "version": "1.0.0",
+  "description": "YouTube视频下载器 - 支持多种格式和清晰度",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node server/index.js",
+    "dev:client": "npx serve -p 5173",
+    "start": "npm run dev:server"
+  },
+  "keywords": [
+    "youtube",
+    "download",
+    "video",
+    "yt-dlp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

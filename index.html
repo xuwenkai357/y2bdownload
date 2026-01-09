@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube 视频下载器</title>
+    <meta
+      name="description"
+      content="免费在线YouTube视频下载工具，支持多种格式和清晰度选择"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-effects">
+      <div class="gradient-orb orb-1"></div>
+      <div class="gradient-orb orb-2"></div>
+      <div class="gradient-orb orb-3"></div>
+    </div>
+
+    <main class="container">
+      <header class="header">
+        <div class="logo">
+          <svg
+            class="logo-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <h1>Y2B Download</h1>
+        </div>
+        <p class="tagline">免费下载 YouTube 视频，支持多种格式与清晰度</p>
+      </header>
+
+      <section class="input-section">
+        <div class="input-wrapper">
+          <input
+            type="text"
+            id="urlInput"
+            class="url-input"
+            placeholder="粘贴 YouTube 视频或播放列表链接..."
+            autocomplete="off"
+          />
+          <button id="parseBtn" class="parse-btn">
+            <span class="btn-text">解析</span>
+            <span class="btn-loader"></span>
+          </button>
+        </div>
+        <div class="input-hint">
+          <span>支持格式：</span>
+          <code>youtube.com/watch?v=xxx</code>
+          <code>youtu.be/xxx</code>
+          <code>youtube.com/playlist?list=xxx</code>
+        </div>
+      </section>
+
+      <section id="errorSection" class="error-section hidden">
+        <div class="error-card">
+          <svg
+            class="error-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <p id="errorMessage"></p>
+        </div>
+      </section>
+
+      <section id="videoSection" class="video-section hidden">
+        <div class="video-card">
+          <div class="video-thumbnail-wrapper">
+            <img
+              id="videoThumbnail"
+              class="video-thumbnail"
+              src=""
+              alt="视频封面"
+            />
+            <span id="videoDuration" class="video-duration"></span>
+          </div>
+          <div class="video-info">
+            <h2 id="videoTitle" class="video-title"></h2>
+            <p id="videoAuthor" class="video-author"></p>
+          </div>
+        </div>
+
+        <div class="format-section">
+          <h3 class="section-title">选择格式</h3>
+          <div class="format-tabs">
+            <button class="format-tab active" data-type="video">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect
+                  x="2"
+                  y="2"
+                  width="20"
+                  height="20"
+                  rx="2.18"
+                  ry="2.18"
+                ></rect>
+                <line x1="7" y1="2" x2="7" y2="22"></line>
+                <line x1="17" y1="2" x2="17" y2="22"></line>
+                <line x1="2" y1="12" x2="22" y2="12"></line>
+                <line x1="2" y1="7" x2="7" y2="7"></line>
+                <line x1="2" y1="17" x2="7" y2="17"></line>
+                <line x1="17" y1="17" x2="22" y2="17"></line>
+                <line x1="17" y1="7" x2="22" y2="7"></line>
+              </svg>
+              视频
+            </button>
+            <button class="format-tab" data-type="audio">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              音频
+            </button>
+          </div>
+
+          <div id="videoFormats" class="format-options">
+            <div class="quality-grid" id="qualityGrid">
+              <!-- Quality options will be inserted here -->
+            </div>
+          </div>
+
+          <div id="audioFormats" class="format-options hidden">
+            <div class="audio-options" id="audioOptions">
+              <!-- Audio options will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <button id="downloadBtn" class="download-btn" disabled>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>下载</span>
+        </button>
+      </section>
+
+      <section id="playlistSection" class="playlist-section hidden">
+        <div class="playlist-header">
+          <div class="playlist-info">
+            <h2 id="playlistTitle" class="playlist-title"></h2>
+            <p id="playlistCount" class="playlist-count"></p>
+          </div>
+          <div class="playlist-actions">
+            <button id="selectAllBtn" class="action-btn">全选</button>
+            <button
+              id="downloadSelectedBtn"
+              class="action-btn primary"
+              disabled
+            >
+              下载选中
+            </button>
+            <button
+              id="downloadSelectedMp3Btn"
+              class="action-btn mp3"
+              disabled
+            >
+              🎵 下载MP3
+            </button>
+          </div>
+        </div>
+        <div id="playlistItems" class="playlist-items">
+          <!-- Playlist items will be inserted here -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>⚠️ 仅供个人学习使用，请尊重版权</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

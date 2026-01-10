@@ -4,6 +4,24 @@
  */
 
 const { spawn } = require('child_process');
+const path = require('path');
+const config = require('../config');
+
+/**
+ * 获取 cookies 参数
+ * @returns {string[]} - cookies 相关的命令行参数
+ */
+function getCookiesArgs() {
+  if (config.COOKIES_FILE) {
+    // 使用 cookies 文件
+    const cookiesPath = path.resolve(__dirname, '../../', config.COOKIES_FILE);
+    return ['--cookies', cookiesPath];
+  } else if (config.COOKIES_FROM_BROWSER) {
+    // 从浏览器获取 cookies
+    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER];
+  }
+  return [];
+}
 
 /**
  * 执行 yt-dlp 命令并返回 JSON 结果
@@ -51,6 +69,7 @@ function executeYtdlp(args) {
  */
 async function getVideoInfo(url) {
   const args = [
+    ...getCookiesArgs(),
     '--dump-json',
     '--no-download',
     '--no-warnings',
@@ -58,7 +77,7 @@ async function getVideoInfo(url) {
   ];
 
   const result = await executeYtdlp(args);
-  
+
   // 格式化返回数据
   return {
     id: result.id,
@@ -81,6 +100,7 @@ async function getVideoInfo(url) {
  */
 async function getPlaylistInfo(url) {
   const args = [
+    ...getCookiesArgs(),
     '--dump-json',
     '--flat-playlist',
     '--no-warnings',
@@ -105,7 +125,7 @@ async function getPlaylistInfo(url) {
         reject(new Error(stderr || `yt-dlp exited with code ${code}`));
         return;
       }
-      
+
       try {
         // 每行是一个 JSON 对象
         const lines = stdout.trim().split('\n').filter(line => line);
@@ -143,6 +163,7 @@ async function getPlaylistInfo(url) {
  */
 async function getFormats(url) {
   const args = [
+    ...getCookiesArgs(),
     '--dump-json',
     '--no-download',
     '--no-warnings',
@@ -150,7 +171,7 @@ async function getFormats(url) {
   ];
 
   const result = await executeYtdlp(args);
-  
+
   if (!result.formats) {
     throw new Error('No formats available');
   }
@@ -225,6 +246,7 @@ async function getFormats(url) {
  */
 async function getDownloadUrl(url, formatId = 'best') {
   const args = [
+    ...getCookiesArgs(),
     '-f', formatId,
     '-g', // 只输出 URL
     '--no-warnings',
@@ -232,10 +254,10 @@ async function getDownloadUrl(url, formatId = 'best') {
   ];
 
   const result = await executeYtdlp(args);
-  
+
   // 可能返回多个 URL（视频和音频分开）
   const urls = result.split('\n').filter(u => u.trim());
-  
+
   return {
     urls,
     // 如果只有一个 URL，可以直接下载
@@ -255,15 +277,16 @@ async function getDownloadInfo(url, formatId = 'best') {
   let actualFormat = formatId;
   let needsConversion = false;
   let targetFormat = null;
-  
+
   if (formatId.includes('--')) {
     const parts = formatId.split('--');
     actualFormat = parts[0]; // e.g., 'bestaudio'
     targetFormat = parts[1]; // e.g., 'mp3'
     needsConversion = true;
   }
-  
+
   const args = [
+    ...getCookiesArgs(),
     '-f', actualFormat,
     '--get-url',
     '--get-filename',
@@ -289,14 +312,14 @@ async function getDownloadInfo(url, formatId = 'best') {
         reject(new Error(stderr || `yt-dlp exited with code ${code}`));
         return;
       }
-      
+
       const lines = stdout.trim().split('\n').filter(l => l);
-      
+
       // 输出格式：URL(s) 在前，filename 在最后
       if (lines.length >= 2) {
         let filename = lines[lines.length - 1];
         const urls = lines.slice(0, -1);
-        
+
         // 如果需要转换，修改文件扩展名提示
         if (needsConversion && targetFormat) {
           const extIndex = filename.lastIndexOf('.');
@@ -304,15 +327,15 @@ async function getDownloadInfo(url, formatId = 'best') {
             filename = filename.substring(0, extIndex) + '.' + targetFormat;
           }
         }
-        
+
         resolve({
           filename,
           urls,
           canDirectDownload: urls.length === 1,
           needsConversion,
           targetFormat,
-          note: needsConversion 
-            ? `下载后请使用 ffmpeg 转换为 ${targetFormat.toUpperCase()} 格式，或直接播放原始格式` 
+          note: needsConversion
+            ? `下载后请使用 ffmpeg 转换为 ${targetFormat.toUpperCase()} 格式，或直接播放原始格式`
             : null
         });
       } else if (lines.length === 1) {

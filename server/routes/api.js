@@ -5,8 +5,23 @@
 
 const express = require('express');
 const router = express.Router();
+const path = require('path');
 const ytdlp = require('../services/ytdlp');
 const downloadQueue = require('../services/downloadQueue');
+const config = require('../config');
+
+/**
+ * 获取 cookies 参数
+ */
+function getCookiesArgs() {
+  if (config.COOKIES_FILE) {
+    const cookiesPath = path.resolve(__dirname, '../../', config.COOKIES_FILE);
+    return ['--cookies', cookiesPath];
+  } else if (config.COOKIES_FROM_BROWSER) {
+    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER];
+  }
+  return [];
+}
 
 /**
  * GET /api/info
@@ -23,7 +38,7 @@ router.get('/info', async (req, res) => {
   try {
     // 判断是否为播放列表
     const isPlaylist = url.includes('list=') && !url.includes('watch?v=');
-    
+
     if (isPlaylist) {
       const info = await ytdlp.getPlaylistInfo(url);
       res.json({ type: 'playlist', data: info });
@@ -95,78 +110,80 @@ router.get('/proxy-download', async (req, res) => {
   const path = require('path');
   const fs = require('fs');
   const os = require('os');
-  
+
   // 创建临时文件路径
   const tempDir = os.tmpdir();
   const tempId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   const tempFilePath = path.join(tempDir, `ytdl-${tempId}`);
-  
+
   try {
     // 解析格式
     let actualFormat = format;
     let audioFormat = null;
-    
+
     if (format.includes('--')) {
       const parts = format.split('--');
       actualFormat = parts[0];
       audioFormat = parts[1]; // mp3, m4a 等
     }
-    
+
     // 构建 yt-dlp 参数
     const args = [
+      ...getCookiesArgs(),
       '-f', actualFormat,
       '-o', tempFilePath + '.%(ext)s',
       '--no-playlist',
       '--no-warnings',
     ];
-    
+
     // 如果需要音频转换
     if (audioFormat) {
       args.push('-x'); // 提取音频
       args.push('--audio-format', audioFormat);
       args.push('--audio-quality', '0'); // 最高质量
     }
-    
+
     args.push(url);
-    
+
     console.log('yt-dlp args:', args);
-    
+
     // 执行 yt-dlp 下载
     const ytdlp = spawn('yt-dlp', args);
-    
+
     let stderr = '';
-    
+
     ytdlp.stderr.on('data', (data) => {
       stderr += data.toString();
       console.log('yt-dlp:', data.toString());
     });
-    
+
     ytdlp.stdout.on('data', (data) => {
       console.log('yt-dlp stdout:', data.toString());
     });
-    
+
     ytdlp.on('close', async (code) => {
       if (code !== 0) {
         console.error('yt-dlp failed:', stderr);
         return res.status(500).json({ error: 'Download failed: ' + stderr });
       }
-      
+
       // 查找下载的文件
       const files = fs.readdirSync(tempDir).filter(f => f.startsWith(`ytdl-${tempId}`));
-      
+
       if (files.length === 0) {
         return res.status(500).json({ error: 'Downloaded file not found' });
       }
-      
+
       const downloadedFile = path.join(tempDir, files[0]);
       const ext = path.extname(files[0]);
       const stat = fs.statSync(downloadedFile);
-      
+
       // 获取视频标题作为文件名
       let filename = `download${ext}`;
       try {
         const { execSync } = require('child_process');
-        const title = execSync(`yt-dlp --get-title --no-warnings "${url}"`, { encoding: 'utf-8' }).trim();
+        const cookiesArg = config.COOKIES_FROM_BROWSER ? `--cookies-from-browser ${config.COOKIES_FROM_BROWSER}` : (config.COOKIES_FILE ? `--cookies ${path.resolve(__dirname, '../../', config.COOKIES_FILE)}` : '');
+        const title = execSync(`yt-dlp ${cookiesArg} --get-title --no-warnings "${url}"`, { encoding: 'utf-8' }).trim();
         if (title) {
           // 清理文件名
           filename = title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 200) + ext;
@@ -174,22 +191,22 @@ router.get('/proxy-download', async (req, res) => {
       } catch (e) {
         console.log('Failed to get title:', e.message);
       }
-      
+
       // ASCII 安全的文件名
       const asciiFilename = filename
         .replace(/[^\x20-\x7E]/g, '')
         .replace(/[<>:"/\\|?*]/g, '_')
         .trim() || `download${ext}`;
-      
+
       // 设置响应头
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('Content-Length', stat.size);
       res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
-      
+
       // 流式返回文件
       const readStream = fs.createReadStream(downloadedFile);
       readStream.pipe(res);
-      
+
       // 下载完成后删除临时文件
       readStream.on('close', () => {
         fs.unlink(downloadedFile, (err) => {
@@ -197,12 +214,12 @@ router.get('/proxy-download', async (req, res) => {
         });
       });
     });
-    
+
     ytdlp.on('error', (err) => {
       console.error('yt-dlp spawn error:', err);
       res.status(500).json({ error: 'Failed to start yt-dlp: ' + err.message });
     });
-    
+
   } catch (error) {
     console.error('Error in proxy download:', error);
     res.status(500).json({ error: error.message || 'Failed to download' });
@@ -218,11 +235,11 @@ router.get('/proxy-download', async (req, res) => {
  */
 router.post('/queue/create', (req, res) => {
   const { urls, format = 'best' } = req.body;
-  
+
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).json({ error: 'Missing or invalid urls' });
   }
-  
+
   const taskId = downloadQueue.createTask(urls, format);
   res.json({ taskId, total: urls.length });
 });
@@ -234,11 +251,11 @@ router.post('/queue/create', (req, res) => {
 router.get('/queue/status/:taskId', (req, res) => {
   const { taskId } = req.params;
   const status = downloadQueue.getTaskStatus(taskId);
-  
+
   if (!status) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  
+
   res.json(status);
 });
 
@@ -249,15 +266,15 @@ router.get('/queue/status/:taskId', (req, res) => {
 router.get('/queue/next/:taskId', (req, res) => {
   const { taskId } = req.params;
   const file = downloadQueue.getNextCompletedFile(taskId);
-  
+
   if (!file) {
     return res.json({ hasFile: false });
   }
-  
-  res.json({ 
-    hasFile: true, 
+
+  res.json({
+    hasFile: true,
     index: file.index,
-    filename: file.filename 
+    filename: file.filename
   });
 });
 
@@ -268,25 +285,25 @@ router.get('/queue/next/:taskId', (req, res) => {
 router.get('/queue/download/:taskId/:index', (req, res) => {
   const { taskId, index } = req.params;
   const fs = require('fs');
-  
+
   const fileInfo = downloadQueue.getFileInfo(taskId, parseInt(index));
-  
+
   if (!fileInfo || !fs.existsSync(fileInfo.filepath)) {
     return res.status(404).json({ error: 'File not found' });
   }
-  
+
   const stat = fs.statSync(fileInfo.filepath);
-  
+
   // ASCII 安全的文件名
   const asciiFilename = fileInfo.filename
     .replace(/[^\x20-\x7E]/g, '')
     .replace(/[<>:"/\\|?*]/g, '_')
     .trim() || 'download';
-  
+
   res.setHeader('Content-Type', 'application/octet-stream');
   res.setHeader('Content-Length', stat.size);
   res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(fileInfo.filename)}`);
-  
+
   const readStream = fs.createReadStream(fileInfo.filepath);
   readStream.pipe(res);
 });
@@ -308,15 +325,15 @@ router.delete('/queue/:taskId', (req, res) => {
 router.get('/health', async (req, res) => {
   try {
     const { spawn } = require('child_process');
-    
+
     const checkYtdlp = new Promise((resolve, reject) => {
       const process = spawn('yt-dlp', ['--version']);
       let version = '';
-      
+
       process.stdout.on('data', (data) => {
         version += data.toString();
       });
-      
+
       process.on('close', (code) => {
         if (code === 0) {
           resolve(version.trim());
@@ -324,14 +341,14 @@ router.get('/health', async (req, res) => {
           reject(new Error('yt-dlp not found'));
         }
       });
-      
+
       process.on('error', () => {
         reject(new Error('yt-dlp not installed'));
       });
     });
 
     const ytdlpVersion = await checkYtdlp;
-    
+
     res.json({
       status: 'ok',
       ytdlp: {

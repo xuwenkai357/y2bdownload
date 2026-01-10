@@ -11,7 +11,8 @@
 3. [安装 yt-dlp](#3-安装-yt-dlp)
 4. [安装 ffmpeg](#4-安装-ffmpeg)
 5. [下载并运行项目](#5-下载并运行项目)
-6. [验证安装](#6-验证安装)
+6. [配置 Cookies（重要）](#6-配置-cookies重要解决-403报错)
+7. [验证安装](#7-验证安装)
 
 ---
 
@@ -178,7 +179,51 @@ http://localhost:5173
 
 ---
 
-## 6. 验证安装
+## 6. 配置 Cookies（重要！解决 403/报错）
+
+YouTube 有严格的反机器人检测，如果不配置 Cookies，下载可能会失败（报错 `Sign in to confirm you’re not a bot`）。
+
+本项目默认配置为使用 **Chrome** 浏览器的 Cookies。
+
+### ⚙️ 修改配置
+
+打开 `server/config.js` 文件，根据你的情况修改：
+
+```javascript
+module.exports = {
+  // 方式一：从浏览器自动获取（推荐）
+  // 支持: 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave'
+  COOKIES_FROM_BROWSER: 'chrome',
+  
+  // 方式二：使用 cookies.txt 文件（如果方式一失败）
+  // COOKIES_FILE: './cookies.txt',
+  // ...
+};
+```
+
+### 方式一：使用浏览器 Cookies（推荐）
+
+1. 确保你已经在电脑上的浏览器（如 Chrome）中**登录了 YouTube 账号**。
+2. 确保在 `server/config.js` 中设置了正确的浏览器名称（默认是 `chrome`）。
+3. 如果使用 Safari，需要在设置中开启 "完全磁盘访问权限" 给终端工具。
+
+### 方式二：使用 cookies.txt 文件
+
+如果方式一无效，可以使用这种方法：
+
+1. 在浏览器安装 "Get cookies.txt LOCALLY" 扩展。
+2. 登录 YouTube。
+3. 使用扩展导出 `cookies.txt` 文件。
+4. 将文件放在项目根目录（`y2bdownload` 文件夹下）。
+5. 修改 `server/config.js`：
+   ```javascript
+   COOKIES_FROM_BROWSER: null,
+   COOKIES_FILE: './cookies.txt',
+   ```
+
+---
+
+## 7. 验证安装
 
 运行以下命令检查所有工具是否正确安装：
 

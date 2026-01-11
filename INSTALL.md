@@ -181,45 +181,50 @@ http://localhost:5173
 
 ## 6. 配置 Cookies（重要！解决 403/报错）
 
-YouTube 有严格的反机器人检测，如果不配置 Cookies，下载可能会失败（报错 `Sign in to confirm you’re not a bot`）。
+YouTube 有严格的反机器人检测，如果不配置 Cookies，下载可能会失败（报错 `Sign in to confirm you're not a bot` 或 `HTTP Error 403`）。
 
-本项目默认配置为使用 **Chrome** 浏览器的 Cookies。
+### 🍪 方式一：通过页面上传（推荐！）
 
-### ⚙️ 修改配置
+本项目支持直接在网页上传 cookies 文件，最简单方便：
 
-打开 `server/config.js` 文件，根据你的情况修改：
+1. **安装浏览器扩展**：
+   - Chrome: [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   - Firefox: 搜索 "cookies.txt" 扩展
 
-```javascript
-module.exports = {
-  // 方式一：从浏览器自动获取（推荐）
-  // 支持: 'chrome', 'safari', 'firefox', 'edge', 'opera', 'brave'
-  COOKIES_FROM_BROWSER: 'chrome',
-  
-  // 方式二：使用 cookies.txt 文件（如果方式一失败）
-  // COOKIES_FILE: './cookies.txt',
-  // ...
-};
-```
+2. **导出 Cookies**：
+   - 用浏览器访问 [YouTube](https://www.youtube.com) 并**登录账号**
+   - 点击扩展图标，选择 "Export" 下载 `cookies.txt` 文件
 
-### 方式一：使用浏览器 Cookies（推荐）
+3. **上传到应用**：
+   - 打开本地应用页面 `http://localhost:5173`
+   - 页面顶部会显示 Cookies 状态指示器
+   - 点击 **「上传 cookies.txt」** 按钮上传文件
 
-1. 确保你已经在电脑上的浏览器（如 Chrome）中**登录了 YouTube 账号**。
-2. 确保在 `server/config.js` 中设置了正确的浏览器名称（默认是 `chrome`）。
-3. 如果使用 Safari，需要在设置中开启 "完全磁盘访问权限" 给终端工具。
+4. **状态说明**：
+   - 🟢 绿色：Cookies 有效，可以正常下载
+   - 🟡 黄色：Cookies 超过 7 天，建议更新
+   - 🔴 红色：需要上传 Cookies
 
-### 方式二：使用 cookies.txt 文件
+### 方式二：手动放置文件
 
-如果方式一无效，可以使用这种方法：
-
-1. 在浏览器安装 "Get cookies.txt LOCALLY" 扩展。
-2. 登录 YouTube。
-3. 使用扩展导出 `cookies.txt` 文件。
-4. 将文件放在项目根目录（`y2bdownload` 文件夹下）。
-5. 修改 `server/config.js`：
+1. 按上述方法导出 `cookies.txt` 文件
+2. 将文件放在项目根目录（`y2bdownload` 文件夹下）
+3. 确保 `server/config.js` 配置正确：
    ```javascript
-   COOKIES_FROM_BROWSER: null,
    COOKIES_FILE: './cookies.txt',
    ```
+
+### 方式三：从浏览器自动读取（macOS 不稳定）
+
+> ⚠️ 此方式在 macOS 上可能因浏览器锁定数据库而失败，推荐使用方式一。
+
+1. 确保 Chrome/Safari/Firefox 中已登录 YouTube
+2. 修改 `server/config.js`：
+   ```javascript
+   COOKIES_FILE: null,  // 注释掉或设为 null
+   COOKIES_FROM_BROWSER: 'chrome',  // 或 'safari', 'firefox'
+   ```
+3. 如果使用 Safari，需开启终端的「完全磁盘访问权限」
 
 ---
 

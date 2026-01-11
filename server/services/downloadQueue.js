@@ -7,17 +7,33 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const config = require('../config');
 
 // 下载队列
 const downloadQueue = new Map(); // taskId -> { items: [], currentIndex: number, status: string }
 const completedFiles = new Map(); // taskId -> [{ filename, filepath }]
 
 /**
+ * 获取 cookies 参数
+ */
+function getCookiesArgs() {
+  if (config.COOKIES_FILE) {
+    const cookiesPath = path.resolve(__dirname, '../../', config.COOKIES_FILE);
+    if (fs.existsSync(cookiesPath)) {
+      return ['--cookies', cookiesPath];
+    }
+  } else if (config.COOKIES_FROM_BROWSER) {
+    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER];
+  }
+  return [];
+}
+
+/**
  * 创建新的下载任务
  */
 function createTask(urls, format) {
   const taskId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-  
+
   downloadQueue.set(taskId, {
     items: urls.map(url => ({
       url,
@@ -30,12 +46,12 @@ function createTask(urls, format) {
     currentIndex: 0,
     status: 'processing'
   });
-  
+
   completedFiles.set(taskId, []);
-  
+
   // 开始处理队列
   processQueue(taskId);
-  
+
   return taskId;
 }
 
@@ -45,34 +61,34 @@ function createTask(urls, format) {
 async function processQueue(taskId) {
   const task = downloadQueue.get(taskId);
   if (!task) return;
-  
+
   while (task.currentIndex < task.items.length) {
     const item = task.items[task.currentIndex];
     item.status = 'downloading';
-    
+
     try {
       const result = await downloadFile(item.url, item.format);
       item.status = 'completed';
       item.filename = result.filename;
       item.filepath = result.filepath;
-      
+
       // 添加到已完成列表
       completedFiles.get(taskId).push({
         index: task.currentIndex,
         filename: result.filename,
         filepath: result.filepath
       });
-      
+
       console.log(`[Queue] Completed ${task.currentIndex + 1}/${task.items.length}: ${result.filename}`);
     } catch (error) {
       item.status = 'error';
       item.error = error.message;
       console.error(`[Queue] Error downloading:`, error.message);
     }
-    
+
     task.currentIndex++;
   }
-  
+
   task.status = 'completed';
   console.log(`[Queue] Task ${taskId} completed`);
 }
@@ -85,74 +101,76 @@ function downloadFile(url, format) {
     const tempDir = os.tmpdir();
     const tempId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
     const tempFilePath = path.join(tempDir, `ytdl-${tempId}`);
-    
+
     // 解析格式
     let actualFormat = format;
     let audioFormat = null;
-    
+
     if (format.includes('--')) {
       const parts = format.split('--');
       actualFormat = parts[0];
       audioFormat = parts[1];
     }
-    
-    // 构建 yt-dlp 参数
+
+    // 构建 yt-dlp 参数，包含 cookies
     const args = [
+      ...getCookiesArgs(),
       '-f', actualFormat,
       '-o', tempFilePath + '.%(ext)s',
       '--no-playlist',
       '--no-warnings',
     ];
-    
+
     if (audioFormat) {
       args.push('-x');
       args.push('--audio-format', audioFormat);
       args.push('--audio-quality', '0');
     }
-    
+
     args.push(url);
-    
+
     console.log('[Queue] Downloading:', url);
-    
+
     const ytdlp = spawn('yt-dlp', args);
     let stderr = '';
-    
+
     ytdlp.stderr.on('data', (data) => {
       stderr += data.toString();
     });
-    
+
     ytdlp.on('close', (code) => {
       if (code !== 0) {
         return reject(new Error(stderr));
       }
-      
+
       // 查找下载的文件
       const files = fs.readdirSync(tempDir).filter(f => f.startsWith(`ytdl-${tempId}`));
-      
+
       if (files.length === 0) {
         return reject(new Error('Downloaded file not found'));
       }
-      
+
       const downloadedFile = path.join(tempDir, files[0]);
       const ext = path.extname(files[0]);
-      
-      // 获取视频标题
+
+      // 获取视频标题（也需要 cookies）
       let filename = `download${ext}`;
       try {
-        const title = execSync(`yt-dlp --get-title --no-warnings "${url}"`, { encoding: 'utf-8' }).trim();
+        const cookiesArg = getCookiesArgs().join(' ');
+        const title = execSync(`yt-dlp ${cookiesArg} --get-title --no-warnings "${url}"`, { encoding: 'utf-8' }).trim();
         if (title) {
           filename = title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 200) + ext;
         }
       } catch (e) {
         // 忽略
       }
-      
+
       resolve({
         filename,
         filepath: downloadedFile
       });
     });
-    
+
     ytdlp.on('error', reject);
   });
 }
@@ -163,7 +181,7 @@ function downloadFile(url, format) {
 function getTaskStatus(taskId) {
   const task = downloadQueue.get(taskId);
   if (!task) return null;
-  
+
   return {
     status: task.status,
     total: task.items.length,
@@ -183,7 +201,7 @@ function getTaskStatus(taskId) {
 function getNextCompletedFile(taskId) {
   const files = completedFiles.get(taskId);
   if (!files || files.length === 0) return null;
-  
+
   return files.shift(); // 取出第一个
 }
 
@@ -193,10 +211,10 @@ function getNextCompletedFile(taskId) {
 function getFileInfo(taskId, index) {
   const task = downloadQueue.get(taskId);
   if (!task || !task.items[index]) return null;
-  
+
   const item = task.items[index];
   if (item.status !== 'completed') return null;
-  
+
   return {
     filename: item.filename,
     filepath: item.filepath

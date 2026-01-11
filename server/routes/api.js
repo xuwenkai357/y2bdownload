@@ -6,9 +6,17 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const ytdlp = require('../services/ytdlp');
 const downloadQueue = require('../services/downloadQueue');
 const config = require('../config');
+
+// 配置 multer 用于 cookies 文件上传
+const cookiesUpload = multer({
+  dest: path.join(__dirname, '../../uploads/'),
+  limits: { fileSize: 1024 * 1024 }, // 1MB 限制
+});
 
 /**
  * 获取 cookies 参数
@@ -364,6 +372,134 @@ router.get('/health', async (req, res) => {
         error: error.message
       }
     });
+  }
+});
+
+// ===== Cookies 管理 API =====
+
+/**
+ * GET /api/cookies/status
+ * 检查 cookies 文件状态
+ */
+router.get('/cookies/status', (req, res) => {
+  const cookiesPath = config.COOKIES_FILE
+    ? path.resolve(__dirname, '../../', config.COOKIES_FILE)
+    : null;
+
+  if (!cookiesPath) {
+    return res.json({
+      configured: false,
+      message: '未配置 cookies 文件路径'
+    });
+  }
+
+  try {
+    if (!fs.existsSync(cookiesPath)) {
+      return res.json({
+        configured: true,
+        exists: false,
+        path: config.COOKIES_FILE,
+        message: 'cookies.txt 文件不存在，请上传'
+      });
+    }
+
+    const stats = fs.statSync(cookiesPath);
+    const content = fs.readFileSync(cookiesPath, 'utf-8');
+    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+
+    // 检查是否是有效的 Netscape cookies 格式
+    const isValidFormat = lines.length > 0 && lines.some(l => l.includes('.youtube.com'));
+
+    // 检查文件是否太旧（超过7天提醒更新）
+    const ageMs = Date.now() - stats.mtime.getTime();
+    const ageDays = Math.floor(ageMs / (1000 * 60 * 60 * 24));
+    const isStale = ageDays > 7;
+
+    res.json({
+      configured: true,
+      exists: true,
+      path: config.COOKIES_FILE,
+      valid: isValidFormat,
+      cookieCount: lines.length,
+      lastModified: stats.mtime.toISOString(),
+      ageDays,
+      isStale,
+      message: isValidFormat
+        ? (isStale ? `cookies 文件已 ${ageDays} 天未更新，建议重新导出` : 'cookies 文件有效')
+        : 'cookies 文件格式无效，请使用 Netscape 格式导出'
+    });
+  } catch (error) {
+    res.status(500).json({
+      configured: true,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/cookies/upload
+ * 上传 cookies 文件
+ */
+router.post('/cookies/upload', cookiesUpload.single('cookies'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '请选择文件' });
+  }
+
+  const cookiesPath = config.COOKIES_FILE
+    ? path.resolve(__dirname, '../../', config.COOKIES_FILE)
+    : path.resolve(__dirname, '../../cookies.txt');
+
+  try {
+    // 读取上传的文件内容
+    const content = fs.readFileSync(req.file.path, 'utf-8');
+
+    // 简单验证格式
+    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
+    const hasYouTubeCookies = lines.some(l => l.includes('.youtube.com') || l.includes('.google.com'));
+
+    if (!hasYouTubeCookies) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        error: '文件中未找到 YouTube 相关的 cookies，请确保已登录 YouTube 后导出'
+      });
+    }
+
+    // 移动到目标位置
+    fs.copyFileSync(req.file.path, cookiesPath);
+    fs.unlinkSync(req.file.path);
+
+    res.json({
+      success: true,
+      cookieCount: lines.length,
+      message: `成功上传 ${lines.length} 条 cookies`
+    });
+  } catch (error) {
+    // 清理临时文件
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: '保存文件失败: ' + error.message });
+  }
+});
+
+/**
+ * DELETE /api/cookies
+ * 删除 cookies 文件
+ */
+router.delete('/cookies', (req, res) => {
+  const cookiesPath = config.COOKIES_FILE
+    ? path.resolve(__dirname, '../../', config.COOKIES_FILE)
+    : null;
+
+  if (!cookiesPath || !fs.existsSync(cookiesPath)) {
+    return res.json({ success: true, message: '文件不存在' });
+  }
+
+  try {
+    fs.unlinkSync(cookiesPath);
+    res.json({ success: true, message: '已删除 cookies 文件' });
+  } catch (error) {
+    res.status(500).json({ error: '删除失败: ' + error.message });
   }
 });
 

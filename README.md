@@ -11,6 +11,7 @@
 - 🎵 **MP3 下载**：自动转换为 320kbps 高品质 MP3
 - 📋 **播放列表**：批量下载整个播放列表
 - 🚀 **队列下载**：后台按顺序下载，不会卡顿
+- 🍪 **Cookies 管理**：页面直接上传 cookies，轻松解决 403 错误
 - 🎨 **精美界面**：现代化深色主题设计
 - 📱 **响应式布局**：支持各种设备访问
 
@@ -63,6 +64,7 @@ https://www.youtube.com/playlist?list=PLAYLIST_ID
 y2bdownload/
 ├── server/                 # 后端服务
 │   ├── index.js           # Express 入口
+│   ├── config.js          # 配置文件（Cookies 等）
 │   ├── routes/api.js      # API 路由
 │   └── services/
 │       ├── ytdlp.js       # yt-dlp 封装
@@ -70,6 +72,7 @@ y2bdownload/
 ├── index.html             # 前端页面
 ├── styles.css             # 样式文件
 ├── app.js                 # 前端逻辑
+├── cookies.txt            # Cookies 文件（需自行上传）
 ├── package.json           # 项目配置
 ├── README.md              # 说明文档
 └── INSTALL.md             # 安装指南
@@ -95,6 +98,9 @@ npm run dev:client
 3. 部分视频可能因版权保护无法下载
 
 ## 🐛 常见问题
+
+**Q: 提示 "Sign in to confirm you're not a bot" 或 403 错误？**
+A: 需要上传 Cookies 文件。详见 [INSTALL.md](./INSTALL.md) 第 6 节
 
 **Q: 提示 yt-dlp 未安装？**
 A: 请按照 [INSTALL.md](./INSTALL.md) 安装 yt-dlp

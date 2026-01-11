@@ -62,6 +62,31 @@
         </div>
       </section>
 
+      <!-- Cookies 状态区域 -->
+      <section id="cookiesSection" class="cookies-section">
+        <div class="cookies-status" id="cookiesStatus">
+          <div class="cookies-indicator">
+            <span class="cookies-dot" id="cookiesDot"></span>
+            <span class="cookies-text" id="cookiesText">检查中...</span>
+          </div>
+          <div class="cookies-actions">
+            <label class="cookies-upload-btn" id="cookiesUploadLabel">
+              <input type="file" id="cookiesFileInput" accept=".txt" hidden />
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              上传 cookies.txt
+            </label>
+            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" 
+               target="_blank" class="cookies-help-link" title="获取 Chrome 扩展">
+               如何导出？
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section id="errorSection" class="error-section hidden">
         <div class="error-card">
           <svg

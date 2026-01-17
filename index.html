@@ -1,231 +1,249 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YouTube 视频下载器</title>
-    <meta
-      name="description"
-      content="免费在线YouTube视频下载工具，支持多种格式和清晰度选择"
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="background-effects">
-      <div class="gradient-orb orb-1"></div>
-      <div class="gradient-orb orb-2"></div>
-      <div class="gradient-orb orb-3"></div>
-    </div>
 
-    <main class="container">
-      <header class="header">
-        <div class="logo">
-          <svg
-            class="logo-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-          </svg>
-          <h1>Y2B Download</h1>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube 视频下载器</title>
+  <meta name="description" content="免费在线YouTube视频下载工具，支持多种格式和清晰度选择" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="background-effects">
+    <div class="gradient-orb orb-1"></div>
+    <div class="gradient-orb orb-2"></div>
+    <div class="gradient-orb orb-3"></div>
+  </div>
+
+  <main class="container">
+    <header class="header">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        <h1>Y2B Download</h1>
+      </div>
+      <p class="tagline">免费下载 YouTube 视频，支持多种格式与清晰度</p>
+    </header>
+
+    <section class="input-section">
+      <div class="input-wrapper">
+        <input type="text" id="urlInput" class="url-input" placeholder="粘贴 YouTube 视频或播放列表链接..." autocomplete="off" />
+        <button id="parseBtn" class="parse-btn">
+          <span class="btn-text">解析</span>
+          <span class="btn-loader"></span>
+        </button>
+      </div>
+      <div class="input-hint">
+        <span>支持格式：</span>
+        <code>youtube.com/watch?v=xxx</code>
+        <code>youtu.be/xxx</code>
+        <code>youtube.com/playlist?list=xxx</code>
+      </div>
+    </section>
+
+    <!-- Cookies 状态区域 -->
+    <section id="cookiesSection" class="cookies-section">
+      <div class="cookies-status" id="cookiesStatus">
+        <div class="cookies-indicator">
+          <span class="cookies-dot" id="cookiesDot"></span>
+          <span class="cookies-text" id="cookiesText">检查中...</span>
         </div>
-        <p class="tagline">免费下载 YouTube 视频，支持多种格式与清晰度</p>
-      </header>
+        <div class="cookies-actions">
+          <label class="cookies-upload-btn" id="cookiesUploadLabel">
+            <input type="file" id="cookiesFileInput" accept=".txt" hidden />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            上传 cookies.txt
+          </label>
+          <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+            target="_blank" class="cookies-help-link" title="获取 Chrome 扩展">
+            如何导出？
+          </a>
+        </div>
+      </div>
+    </section>
 
-      <section class="input-section">
-        <div class="input-wrapper">
-          <input
-            type="text"
-            id="urlInput"
-            class="url-input"
-            placeholder="粘贴 YouTube 视频或播放列表链接..."
-            autocomplete="off"
-          />
-          <button id="parseBtn" class="parse-btn">
-            <span class="btn-text">解析</span>
-            <span class="btn-loader"></span>
+    <section id="errorSection" class="error-section hidden">
+      <div class="error-card">
+        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <p id="errorMessage"></p>
+      </div>
+    </section>
+
+    <section id="videoSection" class="video-section hidden">
+      <div class="video-card">
+        <div class="video-thumbnail-wrapper">
+          <img id="videoThumbnail" class="video-thumbnail" src="" alt="视频封面" />
+          <span id="videoDuration" class="video-duration"></span>
+        </div>
+        <div class="video-info">
+          <h2 id="videoTitle" class="video-title"></h2>
+          <p id="videoAuthor" class="video-author"></p>
+        </div>
+      </div>
+
+      <div class="format-section">
+        <h3 class="section-title">选择格式</h3>
+        <div class="format-tabs">
+          <button class="format-tab active" data-type="video">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+              <line x1="7" y1="2" x2="7" y2="22"></line>
+              <line x1="17" y1="2" x2="17" y2="22"></line>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <line x1="2" y1="7" x2="7" y2="7"></line>
+              <line x1="2" y1="17" x2="7" y2="17"></line>
+              <line x1="17" y1="17" x2="22" y2="17"></line>
+              <line x1="17" y1="7" x2="22" y2="7"></line>
+            </svg>
+            视频
+          </button>
+          <button class="format-tab" data-type="audio">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            音频
           </button>
         </div>
-        <div class="input-hint">
-          <span>支持格式：</span>
-          <code>youtube.com/watch?v=xxx</code>
-          <code>youtu.be/xxx</code>
-          <code>youtube.com/playlist?list=xxx</code>
-        </div>
-      </section>
 
-      <!-- Cookies 状态区域 -->
-      <section id="cookiesSection" class="cookies-section">
-        <div class="cookies-status" id="cookiesStatus">
-          <div class="cookies-indicator">
-            <span class="cookies-dot" id="cookiesDot"></span>
-            <span class="cookies-text" id="cookiesText">检查中...</span>
-          </div>
-          <div class="cookies-actions">
-            <label class="cookies-upload-btn" id="cookiesUploadLabel">
-              <input type="file" id="cookiesFileInput" accept=".txt" hidden />
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              上传 cookies.txt
-            </label>
-            <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" 
-               target="_blank" class="cookies-help-link" title="获取 Chrome 扩展">
-               如何导出？
-            </a>
+        <div id="videoFormats" class="format-options">
+          <div class="quality-grid" id="qualityGrid">
+            <!-- Quality options will be inserted here -->
           </div>
         </div>
-      </section>
 
-      <section id="errorSection" class="error-section hidden">
-        <div class="error-card">
-          <svg
-            class="error-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        <div id="audioFormats" class="format-options hidden">
+          <div class="audio-options" id="audioOptions">
+            <!-- Audio options will be inserted here -->
+          </div>
+        </div>
+      </div>
+
+      <button id="downloadBtn" class="download-btn" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span>下载</span>
+      </button>
+    </section>
+
+    <section id="playlistSection" class="playlist-section hidden">
+      <div class="playlist-header">
+        <div class="playlist-info">
+          <h2 id="playlistTitle" class="playlist-title"></h2>
+          <p id="playlistCount" class="playlist-count"></p>
+        </div>
+        <div class="playlist-actions">
+          <button id="selectAllBtn" class="action-btn">全选</button>
+          <button id="downloadSelectedBtn" class="action-btn primary" disabled>
+            下载选中
+          </button>
+          <button id="downloadSelectedMp3Btn" class="action-btn mp3" disabled>
+            🎵 下载MP3
+          </button>
+        </div>
+      </div>
+      <div id="playlistItems" class="playlist-items">
+        <!-- Playlist items will be inserted here -->
+      </div>
+    </section>
+
+    <!-- WebM 转 MP4 工具区域 -->
+    <section class="convert-section">
+      <details class="convert-details">
+        <summary class="convert-summary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
           </svg>
-          <p id="errorMessage"></p>
-        </div>
-      </section>
+          <span>🔧 本地视频转换工具</span>
+          <span class="convert-hint">WebM → MP4 转换（遇到 403 下载失败时使用）</span>
+        </summary>
+        <div class="convert-content">
+          <p class="convert-desc">
+            如果下载时遇到 <code>HTTP Error 403: Forbidden</code> 无法下载 MP4，可以尝试下载 WebM 格式，
+            然后使用下面的方式转换为 MP4。
+          </p>
 
-      <section id="videoSection" class="video-section hidden">
-        <div class="video-card">
-          <div class="video-thumbnail-wrapper">
-            <img
-              id="videoThumbnail"
-              class="video-thumbnail"
-              src=""
-              alt="视频封面"
-            />
-            <span id="videoDuration" class="video-duration"></span>
-          </div>
-          <div class="video-info">
-            <h2 id="videoTitle" class="video-title"></h2>
-            <p id="videoAuthor" class="video-author"></p>
-          </div>
-        </div>
-
-        <div class="format-section">
-          <h3 class="section-title">选择格式</h3>
-          <div class="format-tabs">
-            <button class="format-tab active" data-type="video">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <rect
-                  x="2"
-                  y="2"
-                  width="20"
-                  height="20"
-                  rx="2.18"
-                  ry="2.18"
-                ></rect>
-                <line x1="7" y1="2" x2="7" y2="22"></line>
-                <line x1="17" y1="2" x2="17" y2="22"></line>
-                <line x1="2" y1="12" x2="22" y2="12"></line>
-                <line x1="2" y1="7" x2="7" y2="7"></line>
-                <line x1="2" y1="17" x2="7" y2="17"></line>
-                <line x1="17" y1="17" x2="22" y2="17"></line>
-                <line x1="17" y1="7" x2="22" y2="7"></line>
-              </svg>
-              视频
-            </button>
-            <button class="format-tab" data-type="audio">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M9 18V5l12-2v13"></path>
-                <circle cx="6" cy="18" r="3"></circle>
-                <circle cx="18" cy="16" r="3"></circle>
-              </svg>
-              音频
-            </button>
-          </div>
-
-          <div id="videoFormats" class="format-options">
-            <div class="quality-grid" id="qualityGrid">
-              <!-- Quality options will be inserted here -->
+          <!-- 方式一：生成命令 -->
+          <div class="convert-method">
+            <h4 class="convert-method-title">📋 方式一：生成终端命令（推荐大文件）</h4>
+            <p class="convert-method-desc">选择文件后生成 ffmpeg 命令，复制到终端运行即可，无需上传。</p>
+            <div class="convert-upload-area" id="convertDropZone">
+              <input type="file" id="convertFileInput" accept=".webm,.mkv,.avi,.mov,.flv" hidden />
+              <label class="convert-upload-btn secondary" for="convertFileInput">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span>选择视频文件</span>
+              </label>
+              <p class="convert-formats">支持格式：WebM、MKV、AVI、MOV、FLV</p>
+            </div>
+            <!-- 生成的命令显示区域 -->
+            <div id="commandOutput" class="command-output hidden">
+              <div class="command-header">
+                <span>📋 复制以下命令到终端运行：</span>
+                <button id="copyCommandBtn" class="copy-btn">复制命令</button>
+              </div>
+              <pre id="commandText" class="command-text"></pre>
             </div>
           </div>
 
-          <div id="audioFormats" class="format-options hidden">
-            <div class="audio-options" id="audioOptions">
-              <!-- Audio options will be inserted here -->
+          <!-- 分隔线 -->
+          <div class="convert-divider">
+            <span>或者</span>
+          </div>
+
+          <!-- 方式二：上传转换 -->
+          <div class="convert-method">
+            <h4 class="convert-method-title">☁️ 方式二：上传到服务器转换（适合小文件）</h4>
+            <p class="convert-method-desc">将文件上传到服务器进行转换，完成后自动下载。</p>
+            <div class="convert-upload-area">
+              <input type="file" id="uploadConvertFileInput" accept=".webm,.mkv,.avi,.mov,.flv" hidden />
+              <label class="convert-upload-btn" for="uploadConvertFileInput">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>上传并转换</span>
+              </label>
+              <p class="convert-formats">文件较大时请使用方式一</p>
+            </div>
+            <div id="convertStatus" class="convert-status hidden">
+              <div class="convert-progress">
+                <div class="convert-progress-bar" id="convertProgressBar"></div>
+              </div>
+              <p class="convert-status-text" id="convertStatusText">准备中...</p>
             </div>
           </div>
         </div>
+      </details>
+    </section>
+  </main>
 
-        <button id="downloadBtn" class="download-btn" disabled>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>下载</span>
-        </button>
-      </section>
+  <footer class="footer">
+    <p>⚠️ 仅供个人学习使用，请尊重版权</p>
+  </footer>
 
-      <section id="playlistSection" class="playlist-section hidden">
-        <div class="playlist-header">
-          <div class="playlist-info">
-            <h2 id="playlistTitle" class="playlist-title"></h2>
-            <p id="playlistCount" class="playlist-count"></p>
-          </div>
-          <div class="playlist-actions">
-            <button id="selectAllBtn" class="action-btn">全选</button>
-            <button
-              id="downloadSelectedBtn"
-              class="action-btn primary"
-              disabled
-            >
-              下载选中
-            </button>
-            <button
-              id="downloadSelectedMp3Btn"
-              class="action-btn mp3"
-              disabled
-            >
-              🎵 下载MP3
-            </button>
-          </div>
-        </div>
-        <div id="playlistItems" class="playlist-items">
-          <!-- Playlist items will be inserted here -->
-        </div>
-      </section>
-    </main>
+  <script src="app.js"></script>
+</body>
 
-    <footer class="footer">
-      <p>⚠️ 仅供个人学习使用，请尊重版权</p>
-    </footer>
-
-    <script src="app.js"></script>
-  </body>
 </html>

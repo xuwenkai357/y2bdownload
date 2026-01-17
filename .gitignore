@@ -38,3 +38,9 @@ downloads/
 *.mp4
 *.webm
 *.m4a
+
+# 上传的文件
+uploads/
+
+# cookies
+cookies.txt

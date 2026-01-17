@@ -971,6 +971,198 @@ function initCookiesUpload() {
   }
 }
 
+// ===== WebM 转 MP4 功能 =====
+const convertElements = {
+  // 方式一：生成命令
+  fileInput: document.getElementById('convertFileInput'),
+  dropZone: document.getElementById('convertDropZone'),
+  commandOutput: document.getElementById('commandOutput'),
+  commandText: document.getElementById('commandText'),
+  copyCommandBtn: document.getElementById('copyCommandBtn'),
+  // 方式二：上传转换
+  uploadFileInput: document.getElementById('uploadConvertFileInput'),
+  status: document.getElementById('convertStatus'),
+  progressBar: document.getElementById('convertProgressBar'),
+  statusText: document.getElementById('convertStatusText'),
+};
+
+/**
+ * 方式一：根据文件路径生成 ffmpeg 命令
+ */
+function generateFfmpegCommand(file) {
+  if (!file) return;
+
+  // 检查文件类型
+  const allowedExt = ['.webm', '.mkv', '.avi', '.mov', '.flv'];
+  const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  if (!allowedExt.includes(ext)) {
+    showToast(`❌ 不支持的文件格式: ${ext}`);
+    return;
+  }
+
+  // 生成输出文件名（将扩展名改为 .mp4）
+  const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+  const outputName = `${baseName}.mp4`;
+
+  // 直接使用文件名，用户需要先 cd 到文件所在目录
+  const command = `ffmpeg -i "${file.name}" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 128k "${outputName}"`;
+
+  // 显示命令
+  convertElements.commandOutput.classList.remove('hidden');
+  convertElements.commandText.textContent = command;
+
+  // 提示用户先 cd 到目录
+  showToast('📋 命令已生成，请先 cd 到文件所在目录再执行');
+}
+
+/**
+ * 方式二：上传文件到服务器进行转换
+ */
+async function handleUploadConvert(file) {
+  if (!file) return;
+
+  // 检查文件类型
+  const allowedExt = ['.webm', '.mkv', '.avi', '.mov', '.flv'];
+  const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  if (!allowedExt.includes(ext)) {
+    showToast(`❌ 不支持的文件格式: ${ext}`);
+    return;
+  }
+
+  // 显示状态区域
+  convertElements.status.classList.remove('hidden');
+  convertElements.progressBar.style.width = '20%';
+  convertElements.statusText.textContent = `正在上传: ${file.name}...`;
+  convertElements.statusText.className = 'convert-status-text';
+
+  const formData = new FormData();
+  formData.append('video', file);
+
+  try {
+    convertElements.progressBar.style.width = '40%';
+    convertElements.statusText.textContent = '正在转换中，请稍候...';
+
+    // 使用 fetch 获取转换后的文件
+    const response = await fetch(`${API_BASE}/api/convert-webm`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || '转换失败');
+    }
+
+    convertElements.progressBar.style.width = '80%';
+    convertElements.statusText.textContent = '转换完成，正在下载...';
+
+    // 获取文件名
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = 'converted.mp4';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/);
+      if (filenameMatch) {
+        filename = decodeURIComponent(filenameMatch[1]);
+      }
+    }
+
+    // 创建下载链接
+    const blob = await response.blob();
+    const downloadUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(downloadUrl);
+
+    convertElements.progressBar.style.width = '100%';
+    convertElements.statusText.textContent = `✅ 转换完成: ${filename}`;
+    convertElements.statusText.className = 'convert-status-text success';
+
+    showToast(`✅ 转换成功: ${filename}`);
+
+    // 5秒后隐藏状态
+    setTimeout(() => {
+      convertElements.status.classList.add('hidden');
+      convertElements.progressBar.style.width = '0%';
+    }, 5000);
+
+  } catch (error) {
+    console.error('Convert error:', error);
+    convertElements.statusText.textContent = `❌ ${error.message}`;
+    convertElements.statusText.className = 'convert-status-text error';
+    showToast(`❌ 转换失败: ${error.message}`);
+  }
+}
+
+function initConvertUpload() {
+  // 方式一：选择文件生成命令
+  if (convertElements.fileInput) {
+    convertElements.fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        generateFfmpegCommand(file);
+      }
+      e.target.value = '';
+    });
+  }
+
+  // 方式一：拖放支持
+  if (convertElements.dropZone) {
+    convertElements.dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      convertElements.dropZone.classList.add('dragover');
+    });
+
+    convertElements.dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      convertElements.dropZone.classList.remove('dragover');
+    });
+
+    convertElements.dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      convertElements.dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files?.[0];
+      if (file) {
+        generateFfmpegCommand(file);
+      }
+    });
+  }
+
+  // 方式一：复制命令按钮
+  if (convertElements.copyCommandBtn) {
+    convertElements.copyCommandBtn.addEventListener('click', async () => {
+      const command = convertElements.commandText.textContent;
+      try {
+        await navigator.clipboard.writeText(command);
+        convertElements.copyCommandBtn.textContent = '已复制 ✓';
+        convertElements.copyCommandBtn.classList.add('copied');
+        showToast('✅ 命令已复制到剪贴板');
+
+        setTimeout(() => {
+          convertElements.copyCommandBtn.textContent = '复制命令';
+          convertElements.copyCommandBtn.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        showToast('❌ 复制失败，请手动复制');
+      }
+    });
+  }
+
+  // 方式二：上传文件转换
+  if (convertElements.uploadFileInput) {
+    convertElements.uploadFileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleUploadConvert(file);
+      }
+      e.target.value = '';
+    });
+  }
+}
+
 // ===== Initialize =====
 async function init() {
   // 解析按钮点击
@@ -998,6 +1190,9 @@ async function init() {
 
   // 初始化 cookies 上传
   initCookiesUpload();
+
+  // 初始化 WebM 转 MP4 功能
+  initConvertUpload();
 
   // 检查后端状态
   const isHealthy = await checkHealth();

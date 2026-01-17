@@ -375,6 +375,119 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ===== WebM 转 MP4 API =====
+
+// 配置 multer 用于视频文件上传
+const videoUpload = multer({
+  dest: path.join(__dirname, '../../uploads/'),
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB 限制
+  fileFilter: (req, file, cb) => {
+    const allowedExt = ['.webm', '.mkv', '.avi', '.mov', '.flv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExt.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`不支持的文件格式: ${ext}。支持的格式: ${allowedExt.join(', ')}`));
+    }
+  }
+});
+
+/**
+ * POST /api/convert-webm
+ * 将 WebM 等视频文件转换为 MP4
+ */
+router.post('/convert-webm', videoUpload.single('video'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '请选择视频文件' });
+  }
+
+  const { spawn } = require('child_process');
+  const os = require('os');
+
+  const inputPath = req.file.path;
+  const originalName = req.file.originalname;
+  const baseName = path.basename(originalName, path.extname(originalName));
+  const outputName = `${baseName}.mp4`;
+  const outputPath = path.join(os.tmpdir(), `convert-${Date.now()}-${outputName}`);
+
+  console.log(`Converting: ${originalName} -> ${outputName}`);
+
+  try {
+    // 使用 ffmpeg 进行转换
+    const ffmpeg = spawn('ffmpeg', [
+      '-i', inputPath,
+      '-c:v', 'libx264',
+      '-crf', '23',
+      '-preset', 'fast',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-y', // 覆盖已存在的文件
+      outputPath
+    ]);
+
+    let stderr = '';
+
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+      // 可以从 stderr 中解析进度信息
+    });
+
+    ffmpeg.on('close', (code) => {
+      // 删除上传的原始文件
+      fs.unlink(inputPath, (err) => {
+        if (err) console.error('Failed to delete uploaded file:', err);
+      });
+
+      if (code !== 0) {
+        console.error('ffmpeg failed:', stderr);
+        return res.status(500).json({ error: '转换失败: ' + stderr.slice(-500) });
+      }
+
+      // 检查输出文件是否存在
+      if (!fs.existsSync(outputPath)) {
+        return res.status(500).json({ error: '转换后的文件未找到' });
+      }
+
+      const stat = fs.statSync(outputPath);
+
+      // ASCII 安全的文件名
+      const asciiFilename = outputName
+        .replace(/[^\x20-\x7E]/g, '')
+        .replace(/[<>:"/\\|?*]/g, '_')
+        .trim() || 'converted.mp4';
+
+      // 设置响应头
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(outputName)}`);
+
+      // 流式返回文件
+      const readStream = fs.createReadStream(outputPath);
+      readStream.pipe(res);
+
+      // 下载完成后删除临时文件
+      readStream.on('close', () => {
+        fs.unlink(outputPath, (err) => {
+          if (err) console.error('Failed to delete converted file:', err);
+        });
+      });
+    });
+
+    ffmpeg.on('error', (err) => {
+      // 删除上传的原始文件
+      fs.unlink(inputPath, () => { });
+      console.error('ffmpeg spawn error:', err);
+      res.status(500).json({ error: 'ffmpeg 启动失败，请确保已安装 ffmpeg: ' + err.message });
+    });
+
+  } catch (error) {
+    // 清理上传的文件
+    fs.unlink(inputPath, () => { });
+    console.error('Convert error:', error);
+    res.status(500).json({ error: error.message || '转换失败' });
+  }
+});
+
 // ===== Cookies 管理 API =====
 
 /**

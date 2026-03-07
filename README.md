@@ -111,6 +111,14 @@ A: 请确保已安装 ffmpeg（用于音频转换）
 **Q: 下载速度慢？**
 A: 取决于你的网络速度和 YouTube 服务器
 
+**Q: 开始频繁出现403错误？**
+A: 可能是yt-dlp被youtube检测到了，可以尝试更新yt-dlp或者更换cookies文件。
+```
+brew upgrade yt-dlp
+
+yt-dlp --version
+```
+
 ## 📄 许可证
 
 MIT License - 自由使用和修改

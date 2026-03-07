@@ -17,15 +17,16 @@ const completedFiles = new Map(); // taskId -> [{ filename, filepath }]
  * 获取 cookies 参数
  */
 function getCookiesArgs() {
+  const defaultArgs = ['--extractor-args', 'youtube:player-client=ios,tv'];
   if (config.COOKIES_FILE) {
     const cookiesPath = path.resolve(__dirname, '../../', config.COOKIES_FILE);
     if (fs.existsSync(cookiesPath)) {
-      return ['--cookies', cookiesPath];
+      return ['--cookies', cookiesPath, ...defaultArgs];
     }
   } else if (config.COOKIES_FROM_BROWSER) {
-    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER];
+    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER, ...defaultArgs];
   }
-  return [];
+  return [...defaultArgs];
 }
 
 /**

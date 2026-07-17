@@ -237,6 +237,147 @@
         </div>
       </details>
     </section>
+
+    <!-- 音频截取工具 -->
+    <section class="convert-section">
+      <details class="convert-details">
+        <summary class="convert-summary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <span>🎵 音频截取工具</span>
+          <span class="convert-hint">上传音频 · 波形选区 · 生成 ffmpeg 命令</span>
+        </summary>
+        <div class="convert-content">
+          <p class="convert-desc">
+            在浏览器本地分析音频（不上传服务器），拖动波形上的选区手柄设定截取范围，
+            生成 ffmpeg 命令后复制到终端即可截取。支持长达 1 小时的音频文件。
+          </p>
+
+          <div class="audio-trim-upload-area" id="audioTrimDropZone">
+            <input type="file" id="audioTrimFileInput"
+              accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,.wma,.opus,.webm" hidden />
+            <label class="convert-upload-btn secondary" for="audioTrimFileInput">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              <span>选择音频文件</span>
+            </label>
+            <p class="convert-formats">支持 MP3、WAV、M4A、AAC、FLAC、OGG 等格式</p>
+          </div>
+
+          <div id="audioTrimWorkspace" class="audio-trim-workspace hidden">
+            <div class="audio-trim-file-info">
+              <span id="audioTrimFileName" class="audio-trim-filename"></span>
+              <span id="audioTrimDuration" class="audio-trim-duration"></span>
+            </div>
+
+            <div id="audioTrimLoading" class="audio-trim-loading hidden">
+              <div class="audio-trim-loading-bar">
+                <div id="audioTrimLoadingProgress" class="audio-trim-loading-progress"></div>
+              </div>
+              <p id="audioTrimLoadingText">正在分析波形...</p>
+            </div>
+
+            <div id="audioTrimPlayer" class="audio-trim-player hidden">
+              <div class="audio-trim-controls">
+                <button id="audioTrimPlayBtn" class="audio-trim-play-btn" title="播放/暂停">
+                  <svg id="audioTrimPlayIcon" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                </button>
+                <button id="audioTrimPlaySelectionBtn" class="audio-trim-action-btn" title="播放选区">
+                  播放选区
+                </button>
+                <div class="audio-trim-time-display">
+                  <span id="audioTrimCurrentTime">00:00:00</span>
+                  <span class="audio-trim-time-sep">/</span>
+                  <span id="audioTrimTotalTime">00:00:00</span>
+                </div>
+              </div>
+
+              <div class="audio-trim-waveform-wrapper">
+                <canvas id="audioTrimCanvas" class="audio-trim-canvas"></canvas>
+                <div class="audio-trim-waveform-hint">拖动绿色/红色手柄调整选区 · 点击波形从该位置播放</div>
+              </div>
+
+              <div class="audio-trim-range-info">
+                <div class="audio-trim-range-item">
+                  <label>选区开始</label>
+                  <div class="audio-trim-range-row">
+                    <span id="audioTrimRangeStart" class="audio-trim-range-value">00:00:00.000</span>
+                    <button id="audioTrimPlayStartBtn" class="audio-trim-mini-play-btn" title="从选区开始处播放">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="audio-trim-range-item">
+                  <label>选区结束</label>
+                  <div class="audio-trim-range-row">
+                    <span id="audioTrimRangeEnd" class="audio-trim-range-value">00:00:00.000</span>
+                    <button id="audioTrimPlayEndBtn" class="audio-trim-mini-play-btn" title="从选区结束处播放">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="audio-trim-range-item">
+                  <label>选区时长</label>
+                  <span id="audioTrimRangeLength" class="audio-trim-range-value highlight">00:00:00.000</span>
+                </div>
+              </div>
+
+              <div class="audio-trim-inputs">
+                <div class="audio-trim-input-group">
+                  <label for="audioTrimStartInput">截取开始</label>
+                  <input type="text" id="audioTrimStartInput" class="audio-trim-time-input"
+                    placeholder="00:00:00.000" />
+                </div>
+                <div class="audio-trim-input-group">
+                  <label for="audioTrimEndInput">截取结束</label>
+                  <input type="text" id="audioTrimEndInput" class="audio-trim-time-input"
+                    placeholder="00:00:00.000" />
+                </div>
+                <button id="audioTrimApplyInputBtn" class="audio-trim-action-btn">应用时间</button>
+              </div>
+
+              <div class="audio-trim-output-format">
+                <label for="audioTrimOutputExt">输出格式</label>
+                <select id="audioTrimOutputExt" class="audio-trim-select">
+                  <option value="same">与原文件相同（-c copy 快速截取）</option>
+                  <option value="mp3">MP3（重新编码 320kbps）</option>
+                  <option value="wav">WAV（无损）</option>
+                  <option value="m4a">M4A（AAC 256kbps）</option>
+                </select>
+              </div>
+
+              <button id="audioTrimGenerateBtn" class="convert-upload-btn" style="width:100%;margin-top:12px;">
+                生成 ffmpeg 截取命令
+              </button>
+            </div>
+
+            <div id="audioTrimCommandOutput" class="command-output hidden">
+              <div class="command-header">
+                <span>📋 复制以下命令到终端运行（先 cd 到文件所在目录）：</span>
+                <button id="audioTrimCopyBtn" class="copy-btn">复制命令</button>
+              </div>
+              <pre id="audioTrimCommandText" class="command-text"></pre>
+              <p class="audio-trim-command-note">
+                提示：使用 <code>-c copy</code> 速度最快但可能在非关键帧处略有偏差；
+                如需精确截取可改用重新编码选项。
+              </p>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
   </main>
 
   <footer class="footer">

@@ -1163,6 +1163,625 @@ function initConvertUpload() {
   }
 }
 
+// ===== 音频截取工具 =====
+const audioTrimElements = {
+  fileInput: document.getElementById('audioTrimFileInput'),
+  dropZone: document.getElementById('audioTrimDropZone'),
+  workspace: document.getElementById('audioTrimWorkspace'),
+  fileName: document.getElementById('audioTrimFileName'),
+  duration: document.getElementById('audioTrimDuration'),
+  loading: document.getElementById('audioTrimLoading'),
+  loadingProgress: document.getElementById('audioTrimLoadingProgress'),
+  loadingText: document.getElementById('audioTrimLoadingText'),
+  player: document.getElementById('audioTrimPlayer'),
+  playBtn: document.getElementById('audioTrimPlayBtn'),
+  playIcon: document.getElementById('audioTrimPlayIcon'),
+  playSelectionBtn: document.getElementById('audioTrimPlaySelectionBtn'),
+  playStartBtn: document.getElementById('audioTrimPlayStartBtn'),
+  playEndBtn: document.getElementById('audioTrimPlayEndBtn'),
+  currentTime: document.getElementById('audioTrimCurrentTime'),
+  totalTime: document.getElementById('audioTrimTotalTime'),
+  canvas: document.getElementById('audioTrimCanvas'),
+  rangeStart: document.getElementById('audioTrimRangeStart'),
+  rangeEnd: document.getElementById('audioTrimRangeEnd'),
+  rangeLength: document.getElementById('audioTrimRangeLength'),
+  startInput: document.getElementById('audioTrimStartInput'),
+  endInput: document.getElementById('audioTrimEndInput'),
+  applyInputBtn: document.getElementById('audioTrimApplyInputBtn'),
+  outputExt: document.getElementById('audioTrimOutputExt'),
+  generateBtn: document.getElementById('audioTrimGenerateBtn'),
+  commandOutput: document.getElementById('audioTrimCommandOutput'),
+  commandText: document.getElementById('audioTrimCommandText'),
+  copyBtn: document.getElementById('audioTrimCopyBtn'),
+};
+
+const audioTrimState = {
+  file: null,
+  audioUrl: null,
+  audio: null,
+  peaks: null,
+  duration: 0,
+  trimStart: 0,
+  trimEnd: 0,
+  currentTime: 0,
+  isPlaying: false,
+  playSelectionMode: false,
+  playStopAt: null,
+  dragging: null, // 'start' | 'end' | 'region' | null
+  pointerDownX: 0,
+  pointerDownHit: null,
+  hasDragged: false,
+  pendingSeekTime: null,
+  dragStartX: 0,
+  dragStartTrimStart: 0,
+  dragStartTrimEnd: 0,
+  canvasWidth: 0,
+  canvasHeight: 0,
+};
+
+const PLAY_ICON = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+const PAUSE_ICON = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+const PEAK_COUNT = 3000;
+const MIN_TRIM_GAP = 0.1;
+
+function formatTimePrecise(seconds, withMs = true) {
+  if (seconds == null || isNaN(seconds)) return withMs ? '00:00:00.000' : '00:00:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+
+  const base = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  if (!withMs) return base;
+  return `${base}.${ms.toString().padStart(3, '0')}`;
+}
+
+function parseTimeInput(str) {
+  if (!str || !str.trim()) return null;
+  str = str.trim();
+
+  if (/^\d+(\.\d+)?$/.test(str)) {
+    return parseFloat(str);
+  }
+
+  const parts = str.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  }
+  return null;
+}
+
+function extractPeaks(audioBuffer, numPeaks) {
+  const channelData = audioBuffer.getChannelData(0);
+  const secondChannel = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+  const samplesPerPeak = Math.floor(channelData.length / numPeaks);
+  const peaks = new Float32Array(numPeaks);
+
+  for (let i = 0; i < numPeaks; i++) {
+    const start = i * samplesPerPeak;
+    const end = Math.min(start + samplesPerPeak, channelData.length);
+    let max = 0;
+    for (let j = start; j < end; j++) {
+      let val = Math.abs(channelData[j]);
+      if (secondChannel) val = Math.max(val, Math.abs(secondChannel[j]));
+      if (val > max) max = val;
+    }
+    peaks[i] = max;
+  }
+
+  const maxPeak = Math.max(...peaks, 0.001);
+  for (let i = 0; i < numPeaks; i++) {
+    peaks[i] /= maxPeak;
+  }
+
+  return peaks;
+}
+
+function timeToX(time) {
+  if (!audioTrimState.duration) return 0;
+  return (time / audioTrimState.duration) * audioTrimState.canvasWidth;
+}
+
+function xToTime(x) {
+  if (!audioTrimState.duration) return 0;
+  return Math.max(0, Math.min(audioTrimState.duration, (x / audioTrimState.canvasWidth) * audioTrimState.duration));
+}
+
+function drawWaveform() {
+  const canvas = audioTrimElements.canvas;
+  if (!canvas || !audioTrimState.peaks) return;
+
+  const ctx = canvas.getContext('2d');
+  const w = audioTrimState.canvasWidth;
+  const h = audioTrimState.canvasHeight;
+  const peaks = audioTrimState.peaks;
+  const mid = h / 2;
+
+  ctx.clearRect(0, 0, w, h);
+
+  // 背景
+  ctx.fillStyle = '#12121a';
+  ctx.fillRect(0, 0, w, h);
+
+  const startX = timeToX(audioTrimState.trimStart);
+  const endX = timeToX(audioTrimState.trimEnd);
+
+  // 选区外暗色遮罩
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(0, 0, startX, h);
+  ctx.fillRect(endX, 0, w - endX, h);
+
+  // 选区内高亮背景
+  ctx.fillStyle = 'rgba(0, 200, 83, 0.08)';
+  ctx.fillRect(startX, 0, endX - startX, h);
+
+  // 波形
+  const barWidth = w / peaks.length;
+  for (let i = 0; i < peaks.length; i++) {
+    const x = i * barWidth;
+    const barH = peaks[i] * (h * 0.85);
+    const inSelection = x >= startX && x <= endX;
+
+    ctx.fillStyle = inSelection ? '#00c853' : '#404050';
+    ctx.fillRect(x, mid - barH / 2, Math.max(barWidth, 1), barH);
+  }
+
+  // 播放头
+  const playX = timeToX(audioTrimState.currentTime);
+  ctx.strokeStyle = '#ff0050';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(playX, 0);
+  ctx.lineTo(playX, h);
+  ctx.stroke();
+
+  // 开始手柄
+  drawHandle(ctx, startX, h, '#00c853', '开始');
+  // 结束手柄
+  drawHandle(ctx, endX, h, '#ff5252', '结束');
+}
+
+function drawHandle(ctx, x, h, color, label) {
+  const handleW = 3;
+  ctx.fillStyle = color;
+  ctx.fillRect(x - handleW / 2, 0, handleW, h);
+
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x - 6, 0);
+  ctx.lineTo(x + 6, 0);
+  ctx.lineTo(x, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(x - 6, h);
+  ctx.lineTo(x + 6, h);
+  ctx.lineTo(x, h - 8);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function updateTrimUI() {
+  audioTrimElements.rangeStart.textContent = formatTimePrecise(audioTrimState.trimStart);
+  audioTrimElements.rangeEnd.textContent = formatTimePrecise(audioTrimState.trimEnd);
+  audioTrimElements.rangeLength.textContent = formatTimePrecise(audioTrimState.trimEnd - audioTrimState.trimStart);
+  audioTrimElements.startInput.value = formatTimePrecise(audioTrimState.trimStart);
+  audioTrimElements.endInput.value = formatTimePrecise(audioTrimState.trimEnd);
+  drawWaveform();
+}
+
+function resizeCanvas() {
+  const canvas = audioTrimElements.canvas;
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  audioTrimState.canvasWidth = rect.width;
+  audioTrimState.canvasHeight = rect.height;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  drawWaveform();
+}
+
+function getCanvasX(e) {
+  const rect = audioTrimElements.canvas.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  return clientX - rect.left;
+}
+
+function hitTestHandle(x) {
+  const startX = timeToX(audioTrimState.trimStart);
+  const endX = timeToX(audioTrimState.trimEnd);
+  const threshold = 12;
+
+  if (Math.abs(x - startX) <= threshold) return 'start';
+  if (Math.abs(x - endX) <= threshold) return 'end';
+  if (x > startX + threshold && x < endX - threshold) return 'region';
+  return null;
+}
+
+function handleCanvasPointerDown(e) {
+  e.preventDefault();
+  const x = getCanvasX(e);
+  const hit = hitTestHandle(x);
+
+  audioTrimState.pointerDownX = x;
+  audioTrimState.pointerDownHit = hit;
+  audioTrimState.hasDragged = false;
+  audioTrimState.pendingSeekTime = null;
+
+  if (hit === 'start' || hit === 'end') {
+    audioTrimState.dragging = hit;
+  } else if (hit === 'region') {
+    audioTrimState.dragging = 'region';
+    audioTrimState.dragStartX = x;
+    audioTrimState.dragStartTrimStart = audioTrimState.trimStart;
+    audioTrimState.dragStartTrimEnd = audioTrimState.trimEnd;
+  } else {
+    audioTrimState.pendingSeekTime = xToTime(x);
+  }
+
+  document.addEventListener('mousemove', handleCanvasPointerMove);
+  document.addEventListener('mouseup', handleCanvasPointerUp);
+  document.addEventListener('touchmove', handleCanvasPointerMove, { passive: false });
+  document.addEventListener('touchend', handleCanvasPointerUp);
+}
+
+function handleCanvasPointerMove(e) {
+  const x = getCanvasX(e);
+
+  if (Math.abs(x - audioTrimState.pointerDownX) > 5) {
+    audioTrimState.hasDragged = true;
+  }
+
+  if (!audioTrimState.dragging) return;
+  e.preventDefault();
+  const time = xToTime(x);
+
+  if (audioTrimState.dragging === 'start') {
+    audioTrimState.trimStart = Math.min(time, audioTrimState.trimEnd - MIN_TRIM_GAP);
+  } else if (audioTrimState.dragging === 'end') {
+    audioTrimState.trimEnd = Math.max(time, audioTrimState.trimStart + MIN_TRIM_GAP);
+  } else if (audioTrimState.dragging === 'region') {
+    const dx = x - audioTrimState.dragStartX;
+    const dt = (dx / audioTrimState.canvasWidth) * audioTrimState.duration;
+    const len = audioTrimState.dragStartTrimEnd - audioTrimState.dragStartTrimStart;
+    let newStart = audioTrimState.dragStartTrimStart + dt;
+    let newEnd = audioTrimState.dragStartTrimEnd + dt;
+
+    if (newStart < 0) {
+      newStart = 0;
+      newEnd = len;
+    }
+    if (newEnd > audioTrimState.duration) {
+      newEnd = audioTrimState.duration;
+      newStart = audioTrimState.duration - len;
+    }
+
+    audioTrimState.trimStart = newStart;
+    audioTrimState.trimEnd = newEnd;
+  }
+
+  updateTrimUI();
+}
+
+function handleCanvasPointerUp(e) {
+  if (!audioTrimState.hasDragged && audioTrimState.pendingSeekTime != null) {
+    playFromTime(audioTrimState.pendingSeekTime);
+  } else if (!audioTrimState.hasDragged && audioTrimState.pointerDownHit === 'region') {
+    playFromTime(xToTime(audioTrimState.pointerDownX));
+  }
+
+  audioTrimState.dragging = null;
+  audioTrimState.pendingSeekTime = null;
+  audioTrimState.pointerDownHit = null;
+  document.removeEventListener('mousemove', handleCanvasPointerMove);
+  document.removeEventListener('mouseup', handleCanvasPointerUp);
+  document.removeEventListener('touchmove', handleCanvasPointerMove);
+  document.removeEventListener('touchend', handleCanvasPointerUp);
+}
+
+function applyTimeInputs() {
+  const start = parseTimeInput(audioTrimElements.startInput.value);
+  const end = parseTimeInput(audioTrimElements.endInput.value);
+
+  if (start == null || end == null) {
+    showToast('❌ 时间格式无效，请使用 HH:MM:SS.000 或秒数');
+    return;
+  }
+  if (start < 0 || end > audioTrimState.duration || start >= end) {
+    showToast('❌ 时间范围无效');
+    return;
+  }
+
+  audioTrimState.trimStart = start;
+  audioTrimState.trimEnd = end;
+  updateTrimUI();
+  showToast('✅ 选区已更新');
+}
+
+function generateTrimCommand() {
+  if (!audioTrimState.file) return;
+
+  const fileName = audioTrimState.file.name;
+  const baseName = fileName.substring(0, fileName.lastIndexOf('.'));
+  const ext = fileName.substring(fileName.lastIndexOf('.'));
+  const start = formatTimePrecise(audioTrimState.trimStart);
+  const end = formatTimePrecise(audioTrimState.trimEnd);
+  const outputFormat = audioTrimElements.outputExt.value;
+
+  let outputName;
+  let encodeOpts;
+
+  switch (outputFormat) {
+    case 'mp3':
+      outputName = `${baseName}_trim.mp3`;
+      encodeOpts = '-c:a libmp3lame -b:a 320k';
+      break;
+    case 'wav':
+      outputName = `${baseName}_trim.wav`;
+      encodeOpts = '-c:a pcm_s16le';
+      break;
+    case 'm4a':
+      outputName = `${baseName}_trim.m4a`;
+      encodeOpts = '-c:a aac -b:a 256k';
+      break;
+    default:
+      outputName = `${baseName}_trim${ext}`;
+      encodeOpts = '-c copy';
+  }
+
+  const command = `ffmpeg -i "${fileName}" -ss ${start} -to ${end} ${encodeOpts} "${outputName}"`;
+
+  audioTrimElements.commandOutput.classList.remove('hidden');
+  audioTrimElements.commandText.textContent = command;
+  showToast('📋 命令已生成，请先 cd 到文件所在目录');
+}
+
+function cleanupAudioTrim() {
+  if (audioTrimState.audio) {
+    audioTrimState.audio.pause();
+    audioTrimState.audio.removeEventListener('timeupdate', onAudioTimeUpdate);
+    audioTrimState.audio.removeEventListener('ended', onAudioEnded);
+    audioTrimState.audio = null;
+  }
+  if (audioTrimState.audioUrl) {
+    URL.revokeObjectURL(audioTrimState.audioUrl);
+    audioTrimState.audioUrl = null;
+  }
+  audioTrimState.peaks = null;
+  audioTrimState.isPlaying = false;
+  audioTrimState.playSelectionMode = false;
+  audioTrimState.playStopAt = null;
+}
+
+function playFromTime(time, { selectionMode = false, stopAt = null } = {}) {
+  if (!audioTrimState.audio) return;
+
+  const clampedTime = Math.max(0, Math.min(audioTrimState.duration, time));
+  audioTrimState.playSelectionMode = selectionMode;
+  audioTrimState.playStopAt = stopAt;
+  audioTrimState.audio.currentTime = clampedTime;
+  audioTrimState.currentTime = clampedTime;
+  audioTrimElements.currentTime.textContent = formatTimePrecise(clampedTime, false);
+  audioTrimState.audio.play();
+  audioTrimState.isPlaying = true;
+  audioTrimElements.playIcon.innerHTML = PAUSE_ICON;
+  drawWaveform();
+}
+
+function onAudioTimeUpdate() {
+  if (!audioTrimState.audio) return;
+  audioTrimState.currentTime = audioTrimState.audio.currentTime;
+  audioTrimElements.currentTime.textContent = formatTimePrecise(audioTrimState.currentTime, false);
+
+  const stopAt = audioTrimState.playSelectionMode
+    ? audioTrimState.trimEnd
+    : audioTrimState.playStopAt;
+
+  if (stopAt != null && audioTrimState.currentTime >= stopAt) {
+    audioTrimState.audio.pause();
+    audioTrimState.isPlaying = false;
+    audioTrimState.playSelectionMode = false;
+    audioTrimState.playStopAt = null;
+    audioTrimElements.playIcon.innerHTML = PLAY_ICON;
+  }
+
+  drawWaveform();
+}
+
+function onAudioEnded() {
+  audioTrimState.isPlaying = false;
+  audioTrimState.playSelectionMode = false;
+  audioTrimState.playStopAt = null;
+  audioTrimElements.playIcon.innerHTML = PLAY_ICON;
+}
+
+function togglePlay() {
+  if (!audioTrimState.audio) return;
+
+  if (audioTrimState.isPlaying) {
+    audioTrimState.audio.pause();
+    audioTrimState.isPlaying = false;
+    audioTrimElements.playIcon.innerHTML = PLAY_ICON;
+  } else {
+    audioTrimState.playSelectionMode = false;
+    audioTrimState.playStopAt = null;
+    audioTrimState.audio.play();
+    audioTrimState.isPlaying = true;
+    audioTrimElements.playIcon.innerHTML = PAUSE_ICON;
+  }
+}
+
+function playSelection() {
+  playFromTime(audioTrimState.trimStart, { selectionMode: true });
+}
+
+async function loadAudioFile(file) {
+  if (!file) return;
+
+  const allowedExt = ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.wma', '.opus', '.webm'];
+  const ext = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  if (!allowedExt.includes(ext)) {
+    showToast(`❌ 不支持的音频格式: ${ext}`);
+    return;
+  }
+
+  cleanupAudioTrim();
+
+  audioTrimState.file = file;
+  audioTrimElements.workspace.classList.remove('hidden');
+  audioTrimElements.player.classList.add('hidden');
+  audioTrimElements.loading.classList.remove('hidden');
+  audioTrimElements.commandOutput.classList.add('hidden');
+  audioTrimElements.fileName.textContent = file.name;
+  audioTrimElements.duration.textContent = formatFileSize(file.size);
+
+  const sizeMB = file.size / (1024 * 1024);
+  if (sizeMB > 100) {
+    audioTrimElements.loadingText.textContent = `文件较大 (${sizeMB.toFixed(0)} MB)，分析可能需要 1-2 分钟，请耐心等待...`;
+  } else if (sizeMB > 30) {
+    audioTrimElements.loadingText.textContent = `正在分析波形 (${sizeMB.toFixed(0)} MB)...`;
+  } else {
+    audioTrimElements.loadingText.textContent = '正在分析波形...';
+  }
+  audioTrimElements.loadingProgress.style.width = '10%';
+
+  try {
+    audioTrimState.audioUrl = URL.createObjectURL(file);
+    audioTrimState.audio = new Audio(audioTrimState.audioUrl);
+
+    await new Promise((resolve, reject) => {
+      audioTrimState.audio.addEventListener('loadedmetadata', resolve, { once: true });
+      audioTrimState.audio.addEventListener('error', reject, { once: true });
+    });
+
+    audioTrimState.duration = audioTrimState.audio.duration;
+    audioTrimState.trimStart = 0;
+    audioTrimState.trimEnd = audioTrimState.duration;
+    audioTrimState.currentTime = 0;
+
+    audioTrimElements.totalTime.textContent = formatTimePrecise(audioTrimState.duration, false);
+    audioTrimElements.duration.textContent = `时长 ${formatTimePrecise(audioTrimState.duration, false)} · ${formatFileSize(file.size)}`;
+
+    audioTrimElements.loadingProgress.style.width = '30%';
+
+    audioTrimState.audio.addEventListener('timeupdate', onAudioTimeUpdate);
+    audioTrimState.audio.addEventListener('ended', onAudioEnded);
+
+    audioTrimElements.loadingProgress.style.width = '50%';
+    audioTrimElements.loadingText.textContent = '正在解码音频生成波形...';
+
+    const arrayBuffer = await file.arrayBuffer();
+    audioTrimElements.loadingProgress.style.width = '70%';
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    audioTrimElements.loadingProgress.style.width = '90%';
+
+    audioTrimState.peaks = extractPeaks(audioBuffer, PEAK_COUNT);
+    await audioContext.close();
+
+    audioTrimElements.loadingProgress.style.width = '100%';
+
+    audioTrimElements.loading.classList.add('hidden');
+    audioTrimElements.player.classList.remove('hidden');
+
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      updateTrimUI();
+    });
+
+    showToast('✅ 音频加载完成');
+  } catch (error) {
+    console.error('Audio load error:', error);
+    audioTrimElements.loading.classList.add('hidden');
+    showToast('❌ 音频加载失败: ' + error.message);
+  }
+}
+
+function initAudioTrim() {
+  if (!audioTrimElements.fileInput) return;
+
+  audioTrimElements.fileInput.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) loadAudioFile(file);
+    e.target.value = '';
+  });
+
+  if (audioTrimElements.dropZone) {
+    audioTrimElements.dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      audioTrimElements.dropZone.classList.add('dragover');
+    });
+    audioTrimElements.dropZone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      audioTrimElements.dropZone.classList.remove('dragover');
+    });
+    audioTrimElements.dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      audioTrimElements.dropZone.classList.remove('dragover');
+      const file = e.dataTransfer.files?.[0];
+      if (file) loadAudioFile(file);
+    });
+  }
+
+  audioTrimElements.playBtn?.addEventListener('click', togglePlay);
+  audioTrimElements.playSelectionBtn?.addEventListener('click', playSelection);
+  audioTrimElements.playStartBtn?.addEventListener('click', () => {
+    playFromTime(audioTrimState.trimStart);
+  });
+  audioTrimElements.playEndBtn?.addEventListener('click', () => {
+    playFromTime(audioTrimState.trimEnd);
+  });
+  audioTrimElements.applyInputBtn?.addEventListener('click', applyTimeInputs);
+  audioTrimElements.generateBtn?.addEventListener('click', generateTrimCommand);
+
+  audioTrimElements.startInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') applyTimeInputs();
+  });
+  audioTrimElements.endInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') applyTimeInputs();
+  });
+
+  audioTrimElements.canvas?.addEventListener('mousedown', handleCanvasPointerDown);
+  audioTrimElements.canvas?.addEventListener('touchstart', handleCanvasPointerDown, { passive: false });
+
+  window.addEventListener('resize', () => {
+    if (audioTrimState.peaks) resizeCanvas();
+  });
+
+  audioTrimElements.copyBtn?.addEventListener('click', async () => {
+    const command = audioTrimElements.commandText.textContent;
+    try {
+      await navigator.clipboard.writeText(command);
+      audioTrimElements.copyBtn.textContent = '已复制 ✓';
+      audioTrimElements.copyBtn.classList.add('copied');
+      showToast('✅ 命令已复制到剪贴板');
+      setTimeout(() => {
+        audioTrimElements.copyBtn.textContent = '复制命令';
+        audioTrimElements.copyBtn.classList.remove('copied');
+      }, 2000);
+    } catch {
+      showToast('❌ 复制失败，请手动复制');
+    }
+  });
+
+  const detailsEl = audioTrimElements.dropZone?.closest('details');
+  detailsEl?.addEventListener('toggle', () => {
+    if (detailsEl.open && audioTrimState.peaks) {
+      requestAnimationFrame(() => resizeCanvas());
+    }
+  });
+}
+
 // ===== Initialize =====
 async function init() {
   // 解析按钮点击
@@ -1193,6 +1812,9 @@ async function init() {
 
   // 初始化 WebM 转 MP4 功能
   initConvertUpload();
+
+  // 初始化音频截取工具
+  initAudioTrim();
 
   // 检查后端状态
   const isHealthy = await checkHealth();

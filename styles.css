@@ -1138,6 +1138,320 @@ body {
   background: var(--border-color);
 }
 
+/* ===== 音频截取工具 ===== */
+.audio-trim-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.audio-trim-upload-area.dragover {
+  border-color: #00c853;
+  background: rgba(0, 200, 83, 0.05);
+}
+
+.audio-trim-workspace {
+  margin-top: 16px;
+}
+
+.audio-trim-file-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.audio-trim-filename {
+  font-weight: 600;
+  font-size: 0.95rem;
+  word-break: break-all;
+}
+
+.audio-trim-duration {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.audio-trim-loading {
+  padding: 24px;
+  text-align: center;
+}
+
+.audio-trim-loading-bar {
+  height: 4px;
+  background: var(--bg-secondary);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.audio-trim-loading-progress {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(135deg, #00c853 0%, #00bfa5 100%);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.audio-trim-loading p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.audio-trim-player {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.audio-trim-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.audio-trim-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-gradient);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.audio-trim-play-btn:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-glow);
+}
+
+.audio-trim-play-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.audio-trim-action-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.audio-trim-action-btn:hover {
+  border-color: #00c853;
+  background: rgba(0, 200, 83, 0.1);
+}
+
+.audio-trim-time-display {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.audio-trim-time-sep {
+  margin: 0 4px;
+  color: var(--text-muted);
+}
+
+.audio-trim-waveform-wrapper {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.audio-trim-canvas {
+  display: block;
+  width: 100%;
+  height: 120px;
+  cursor: crosshair;
+}
+
+.audio-trim-waveform-hint {
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+}
+
+.audio-trim-range-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.audio-trim-range-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.audio-trim-range-item label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.audio-trim-range-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.audio-trim-mini-play-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: #00c853;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.audio-trim-mini-play-btn:hover {
+  border-color: #00c853;
+  background: rgba(0, 200, 83, 0.15);
+  transform: scale(1.08);
+}
+
+.audio-trim-mini-play-btn svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+}
+
+.audio-trim-range-value {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.audio-trim-range-value.highlight {
+  color: #00c853;
+}
+
+.audio-trim-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.audio-trim-input-group {
+  flex: 1;
+  min-width: 140px;
+}
+
+.audio-trim-input-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.audio-trim-time-input {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  transition: border-color var(--transition-fast);
+}
+
+.audio-trim-time-input:focus {
+  outline: none;
+  border-color: #00c853;
+}
+
+.audio-trim-output-format {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.audio-trim-output-format label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.audio-trim-select {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.audio-trim-select:focus {
+  outline: none;
+  border-color: #00c853;
+}
+
+.audio-trim-command-note {
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  line-height: 1.5;
+}
+
+.audio-trim-command-note code {
+  background: rgba(0, 212, 170, 0.15);
+  color: #00d4aa;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .audio-trim-range-info {
+    grid-template-columns: 1fr;
+  }
+
+  .audio-trim-time-display {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 640px) {
   .container {

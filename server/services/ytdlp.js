@@ -12,16 +12,24 @@ const config = require('../config');
  * @returns {string[]} - cookies 相关的命令行参数
  */
 function getCookiesArgs() {
-  const defaultArgs = ['--extractor-args', 'youtube:player-client=ios,tv'];
+  // 带 cookies 时 ios 会被跳过；tv/tv_downgraded 当前会返回 UNPLAYABLE
+  // （YouTube: "The page needs to be reloaded"）
+  const hasCookies = Boolean(config.COOKIES_FILE || config.COOKIES_FROM_BROWSER);
+  const extractorArgs = [
+    '--extractor-args',
+    hasCookies
+      ? 'youtube:player_client=default,web_embedded'
+      : 'youtube:player_client=ios,tv',
+  ];
   if (config.COOKIES_FILE) {
     // 使用 cookies 文件
     const cookiesPath = path.resolve(__dirname, '../../', config.COOKIES_FILE);
-    return ['--cookies', cookiesPath, ...defaultArgs];
+    return ['--cookies', cookiesPath, ...extractorArgs];
   } else if (config.COOKIES_FROM_BROWSER) {
     // 从浏览器获取 cookies
-    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER, ...defaultArgs];
+    return ['--cookies-from-browser', config.COOKIES_FROM_BROWSER, ...extractorArgs];
   }
-  return [...defaultArgs];
+  return [...extractorArgs];
 }
 
 /**
